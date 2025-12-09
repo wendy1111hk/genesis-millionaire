@@ -1,0 +1,683 @@
+
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>聖經百萬富翁 - 創世記篇</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&family=Roboto+Mono:wght@700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #020230;
+            color: white;
+            overflow-x: hidden;
+            touch-action: manipulation;
+        }
+        
+        .bg-studio {
+            background: radial-gradient(circle at center, #0b1e5a 0%, #020230 70%, #000000 100%);
+            min-height: 100vh;
+        }
+
+        .ladder-scroll::-webkit-scrollbar { width: 6px; }
+        .ladder-scroll::-webkit-scrollbar-track { background: #000; }
+        .ladder-scroll::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
+
+        @keyframes pulse-gold {
+            0%, 100% { box-shadow: 0 0 10px #ca8a04; }
+            50% { box-shadow: 0 0 25px #facc15; }
+        }
+        .animate-winner { animation: pulse-gold 2s infinite; }
+        
+        @keyframes flash-correct {
+            0%, 100% { background-color: #166534; }
+            50% { background-color: #22c55e; }
+        }
+        .correct-answer { animation: flash-correct 0.5s linear 3; }
+
+        .hidden { display: none !important; }
+        .invisible-opt { visibility: hidden; pointer-events: none; }
+
+        /* Custom Ladder Styles */
+        .ladder-item { transition: all 0.3s; }
+        .ladder-active { background-color: #ca8a04; color: white; transform: scale(1.05); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+        .ladder-safe { color: white; font-weight: bold; }
+        .ladder-normal { color: #d97706; } /* amber-600 */
+        .ladder-passed { color: #065f46; opacity: 0.6; }
+
+        /* Lifeline Used State */
+        .lifeline-used { 
+            opacity: 0.5; 
+            cursor: not-allowed; 
+            position: relative;
+        }
+        .lifeline-used::after {
+            content: '❌';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 2rem;
+        }
+
+        /* Bar Chart for Audience */
+        .bar-container { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 150px; width: 40px; margin: 0 10px; }
+        .bar { background: #fbbf24; width: 100%; transition: height 1s ease-out; border-radius: 4px 4px 0 0; }
+    </style>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body class="bg-studio flex flex-col items-center">
+
+    <!-- 1. Start Screen -->
+    <div id="start-screen" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/90 text-center p-4 transition-opacity duration-500">
+        <div class="relative mb-8">
+            <div class="absolute inset-0 bg-blue-600 blur-3xl opacity-30 rounded-full"></div>
+            <h1 class="relative text-5xl md:text-7xl font-bold text-transparent bg-clip-text bg-gradient-to-b from-yellow-200 to-yellow-600 drop-shadow-lg tracking-widest font-serif">
+                百萬富翁
+            </h1>
+            <h2 class="text-xl text-blue-300 mt-2 tracking-[0.5em] uppercase">Genesis Edition</h2>
+        </div>
+        
+        <div class="bg-slate-900/80 p-8 rounded-2xl border border-blue-800 shadow-2xl max-w-lg backdrop-blur-sm">
+            <p class="text-gray-300 mb-8 text-lg leading-relaxed text-left">
+                🎮 挑戰 15 條《創世記》問題<br>
+                🛡️ 保險線：第5題、第10題<br>
+                🆘 三大錦囊：50:50、問朋友、問觀眾<br>
+                🚪 可隨時選擇「棄權」拿走目前獎金
+            </p>
+            <button onclick="game.start()" class="w-full px-8 py-4 text-2xl font-bold text-white bg-gradient-to-b from-blue-600 to-blue-900 border-2 border-blue-400 rounded-full shadow-[0_0_20px_rgba(59,130,246,0.5)] hover:scale-105 hover:shadow-[0_0_40px_rgba(59,130,246,0.8)] transition-transform duration-200">
+                開始遊戲
+            </button>
+        </div>
+    </div>
+
+    <!-- 2. Game UI -->
+    <div id="game-ui" class="w-full max-w-7xl flex flex-col lg:flex-row flex-1 hidden opacity-0 transition-opacity duration-500 h-screen">
+        
+        <!-- Main Game Area -->
+        <div class="flex-1 flex flex-col p-4 pb-8 lg:pr-8 relative overflow-y-auto">
+            
+            <!-- Top Bar: Status & Lifelines -->
+            <div class="w-full flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                
+                <!-- Current Status Badge -->
+                <div class="bg-slate-900/90 border border-blue-500 rounded-lg px-6 py-3 shadow-[0_0_15px_rgba(37,99,235,0.3)] w-full md:w-auto text-center md:text-left">
+                    <div class="text-xs text-blue-400 uppercase tracking-widest mb-1">Current Question</div>
+                    <div class="flex items-baseline justify-center md:justify-start gap-3">
+                        <span id="q-level-display" class="text-2xl font-bold text-yellow-500">Q1</span>
+                        <span class="text-gray-500">/</span>
+                        <span id="q-money-display" class="text-2xl font-mono text-white">$1,000</span>
+                    </div>
+                    <div id="safe-haven-badge" class="hidden text-xs font-bold text-green-400 mt-1 bg-green-900/30 px-2 py-0.5 rounded inline-block">🛡️ 保險線 Safe Haven</div>
+                </div>
+
+                <!-- Lifelines Area -->
+                <div class="flex gap-3">
+                    <button id="lifeline-5050" onclick="game.use5050()" class="relative group w-16 h-16 rounded-full border-2 border-blue-400 bg-slate-900 flex items-center justify-center hover:bg-blue-900 transition-colors shadow-lg" title="50:50">
+                        <span class="text-blue-300 font-bold text-sm">50:50</span>
+                    </button>
+                    <button id="lifeline-phone" onclick="game.usePhone()" class="relative group w-16 h-16 rounded-full border-2 border-blue-400 bg-slate-900 flex items-center justify-center hover:bg-blue-900 transition-colors shadow-lg" title="問朋友">
+                        <span class="text-2xl">📞</span>
+                    </button>
+                    <button id="lifeline-audience" onclick="game.useAudience()" class="relative group w-16 h-16 rounded-full border-2 border-blue-400 bg-slate-900 flex items-center justify-center hover:bg-blue-900 transition-colors shadow-lg" title="問現場觀眾">
+                        <span class="text-2xl">👥</span>
+                    </button>
+                </div>
+
+                <!-- Walk Away Button (Desktop) -->
+                <div class="hidden md:block">
+                     <button onclick="game.walkAway()" class="px-4 py-2 bg-red-900/50 border border-red-500 text-red-200 rounded hover:bg-red-800 transition text-sm">
+                        🚪 棄權 (取走獎金)
+                    </button>
+                </div>
+            </div>
+
+            <!-- Spacer -->
+            <div class="flex-1 min-h-[10px]"></div>
+
+            <!-- Question Box -->
+            <div class="relative w-full mb-6 md:mb-10">
+                <div class="absolute inset-0 bg-blue-600/10 blur-xl rounded-full"></div>
+                <div class="relative bg-gradient-to-b from-slate-900 to-black border-2 border-blue-400 rounded-3xl p-6 md:p-12 text-center shadow-[0_0_30px_rgba(59,130,246,0.2)] min-h-[180px] flex flex-col items-center justify-center">
+                    <div class="absolute top-1/2 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-blue-500 to-transparent opacity-20"></div>
+                    <h2 id="question-text" class="text-xl md:text-3xl font-bold leading-relaxed relative z-10 text-white">
+                        Loading...
+                    </h2>
+                </div>
+            </div>
+
+            <!-- Options Grid -->
+            <div id="options-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <!-- Buttons will be injected here -->
+            </div>
+
+            <!-- Mobile Walk Away (Bottom) -->
+            <div class="md:hidden w-full flex justify-center mb-4">
+                <button onclick="game.walkAway()" class="px-6 py-2 bg-red-900/50 border border-red-500 text-red-200 rounded-full hover:bg-red-800 transition text-sm w-full">
+                    🚪 棄權 (取走獎金)
+                </button>
+            </div>
+
+            <!-- Source Reveal & Next Button Area -->
+            <div id="control-area" class="min-h-[100px] flex flex-col items-center justify-center gap-4 transition-all duration-500">
+                <!-- Source Text -->
+                <div id="source-reveal" class="text-center opacity-0 transition-opacity duration-500">
+                    <p id="source-text" class="text-yellow-400 font-serif italic text-lg md:text-2xl drop-shadow-md">
+                        <!-- Source text -->
+                    </p>
+                </div>
+
+                <!-- Next Button (Hidden initially) -->
+                <button id="next-btn" onclick="game.nextQuestion()" class="hidden px-10 py-3 text-xl font-bold text-black bg-gradient-to-r from-yellow-400 to-yellow-600 rounded-full hover:scale-105 hover:shadow-[0_0_20px_rgba(234,179,8,0.8)] transition-all animate-bounce">
+                    下一題 ➔
+                </button>
+            </div>
+            
+            <!-- Spacer -->
+            <div class="flex-1 lg:hidden"></div>
+        </div>
+
+        <!-- Sidebar Ladder (Desktop) -->
+        <div class="hidden lg:flex flex-col w-80 bg-black/60 border-l border-blue-900 h-screen sticky top-0 backdrop-blur-md z-20">
+            <div class="p-4 bg-slate-900/50 border-b border-blue-900 text-center">
+                <h3 class="text-blue-300 font-bold tracking-widest">獎金階梯</h3>
+            </div>
+            <div id="money-ladder-desktop" class="flex flex-col-reverse p-6 overflow-y-auto ladder-scroll h-full justify-center gap-1">
+                <!-- Ladder items injected here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    
+    <!-- Phone A Friend Modal -->
+    <div id="modal-phone" class="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center hidden">
+        <div class="bg-slate-800 border-2 border-blue-500 p-8 rounded-2xl max-w-sm w-full text-center shadow-2xl relative">
+            <div class="text-6xl mb-4">📞</div>
+            <h3 class="text-2xl font-bold text-white mb-4">朋友的建議</h3>
+            <p id="phone-msg" class="text-xl text-yellow-300 font-mono mb-6 typing-effect">
+                Thinking...
+            </p>
+            <button onclick="document.getElementById('modal-phone').classList.add('hidden')" class="px-6 py-2 bg-blue-600 rounded text-white font-bold">
+                收到，謝謝
+            </button>
+        </div>
+    </div>
+
+    <!-- Audience Poll Modal -->
+    <div id="modal-audience" class="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center hidden">
+        <div class="bg-slate-800 border-2 border-blue-500 p-8 rounded-2xl max-w-md w-full text-center shadow-2xl relative">
+            <div class="text-6xl mb-4">👥</div>
+            <h3 class="text-2xl font-bold text-white mb-6">現場觀眾投票結果</h3>
+            
+            <div id="chart-container" class="flex justify-center items-end h-40 gap-4 mb-4 text-white font-bold">
+                <!-- Bars injected via JS -->
+            </div>
+            
+            <button onclick="document.getElementById('modal-audience').classList.add('hidden')" class="px-6 py-2 bg-blue-600 rounded text-white font-bold mt-4">
+                回到遊戲
+            </button>
+        </div>
+    </div>
+
+    <!-- 3. Result Screen -->
+    <div id="result-screen" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/95 hidden text-center p-6">
+        <h2 id="result-title" class="text-6xl font-bold mb-6 text-white"></h2>
+        
+        <p class="text-2xl text-gray-300">你最終贏得了</p>
+        <p id="result-prize" class="text-5xl font-mono text-yellow-400 font-bold my-4 drop-shadow-[0_0_20px_rgba(250,204,21,0.6)]">$0</p>
+        
+        <div id="correct-answer-display" class="hidden bg-red-900/20 border border-red-800 p-6 rounded-xl mt-8 mb-8 max-w-md w-full">
+            <p class="text-gray-400 text-sm mb-2">正確答案是：</p>
+            <p id="correct-answer-text" class="text-2xl font-bold text-white mb-2"></p>
+            <p id="correct-source-text" class="text-yellow-600 font-serif italic"></p>
+        </div>
+
+        <button onclick="game.start()" class="mt-8 px-10 py-4 text-xl font-bold text-black bg-white rounded-full hover:bg-gray-200 hover:scale-105 transition-all shadow-[0_0_20px_white]">
+            再玩一次
+        </button>
+    </div>
+
+    <!-- Game Logic -->
+    <script>
+        // --- Data ---
+        const RAW_QUESTIONS = [
+            { q: "上帝在創造天地的第一日創造了甚麼？", a: "光", opts: ["空氣", "陸地", "日月星"], src: "創世記 1:3-5 [1]" },
+            { q: "耶和華用甚麼造了男人？", a: "地上的塵土", opts: ["空氣", "水", "一根肋骨"], src: "創世記 2:7 [2]" },
+            { q: "伊甸園中哪條河環繞哈腓拉全地，那裏有金子？", a: "比遜", opts: ["基訓", "底格里斯", "幼發拉底"], src: "創世記 2:11 [2]" },
+            { q: "蛇對女人說，你們吃的日子便如上帝能知道甚麼？", a: "善惡", opts: ["未來", "生死", "智慧"], src: "創世記 3:5 [3]" },
+            { q: "亞伯是做甚麼工作的？", a: "牧羊的", opts: ["種地的", "鐵匠", "獵戶"], src: "創世記 4:2 [4]" },
+            { q: "該隱殺了亞伯後，去住在伊甸東邊的哪裏？", a: "挪得之地", opts: ["哈蘭", "埃及", "所多瑪"], src: "創世記 4:16 [5]" },
+            { q: "瑪土撒拉共活了多少歲？", a: "969歲", opts: ["930歲", "950歲", "777歲"], src: "創世記 5:27 [6]" },
+            { q: "上帝吩咐挪亞用甚麼木造方舟？", a: "歌斐木", opts: ["香柏木", "皂莢木", "橄欖木"], src: "創世記 6:14 [7]" },
+            { q: "洪水在地上氾濫了多少天？", a: "40天", opts: ["7天", "150天", "100天"], src: "創世記 7:17 [8]" },
+            { q: "方舟停在甚麼山上？", a: "亞拉臘山", opts: ["西奈山", "摩利亞山", "橄欖山"], src: "創世記 8:4 [8]" },
+            { q: "鴿子回到挪亞那裏，嘴裏叼着甚麼？", a: "橄欖葉子", opts: ["無花果葉", "樹枝", "麥穗"], src: "創世記 8:11 [9]" },
+            { q: "上帝用甚麼作為與地立約不再用洪水毀滅的記號？", a: "虹", opts: ["星", "日頭", "雲柱"], src: "創世記 9:13 [10]" },
+            { q: "誰是世上英雄之首，是個英勇的獵戶？", a: "寧錄", opts: ["古實", "迦南", "閃"], src: "創世記 10:8-9 [11]" },
+            { q: "人們造巴別塔的目的是為了傳揚甚麼？", a: "他們的名", opts: ["上帝的名", "國王的名", "祖先的名"], src: "創世記 11:4 [12]" },
+            { q: "他拉死在哪裏？", a: "哈蘭", opts: ["吾珥", "迦南", "埃及"], src: "創世記 11:32 [13]" },
+            { q: "亞伯蘭出哈蘭的時候年多少歲？", a: "75歲", opts: ["86歲", "99歲", "100歲"], src: "創世記 12:4 [13]" },
+            { q: "羅得選擇了哪裏的平原居住？", a: "約旦河的全平原", opts: ["幔利", "尼革夫", "基列"], src: "創世記 13:11 [14]" },
+            { q: "誰是至高上帝的祭司，帶着餅和酒出來迎接亞伯蘭？", a: "麥基洗德", opts: ["亞比米勒", "法老", "基大老瑪"], src: "創世記 14:18 [15]" },
+            { q: "耶和華預言亞伯蘭的後裔要寄居別人的地服事那地的人多少年？", a: "400年", opts: ["430年", "70年", "100年"], src: "創世記 15:13 [16]" },
+            { q: "夏甲給亞伯蘭生以實瑪利時，亞伯蘭年多少歲？", a: "86歲", opts: ["75歲", "99歲", "100歲"], src: "創世記 16:16 [17]" },
+            { q: "亞伯拉罕的後裔中，男子生下來第幾日要受割禮？", a: "第八日", opts: ["第七日", "第十二日", "第四十日"], src: "創世記 17:12 [18]" },
+            { q: "當上帝應許撒拉將生一個兒子時，撒拉在哪裏聽見而暗笑？", a: "帳棚門口", opts: ["樹下", "井旁", "廚房"], src: "創世記 18:10 [19]" },
+            { q: "耶和華將硫磺與火降與哪兩個城？", a: "所多瑪和蛾摩拉", opts: ["巴別和尼尼微", "耶利哥和艾城", "基拉耳和別是巴"], src: "創世記 19:24 [20]" },
+            { q: "羅得的妻子回頭一看，變成了甚麼？", a: "一根鹽柱", opts: ["一塊石頭", "一棵樹", "一隻鳥"], src: "創世記 19:26 [20]" },
+            { q: "亞伯拉罕稱撒拉為妹子，哪位王差人把撒拉取了去？", a: "亞比米勒", opts: ["法老", "麥基洗德", "基大老瑪"], src: "創世記 20:2 [21]" },
+            { q: "以撒出生時，亞伯拉罕年多少歲？", a: "100歲", opts: ["99歲", "86歲", "90歲"], src: "創世記 21:5 [22]" },
+            { q: "亞伯拉罕在別是巴栽上一棵甚麼樹求告耶和華的名？", a: "垂絲柳樹", opts: ["橡樹", "無花果樹", "橄欖樹"], src: "創世記 21:33 [23]" },
+            { q: "上帝吩咐亞伯拉罕帶以撒去哪裏獻祭？", a: "摩利亞地", opts: ["西奈山", "伯特利", "希伯崙"], src: "創世記 22:2 [23]" },
+            { q: "亞伯拉罕獻祭時，發現一隻公羊，它的甚麼被扣在小樹中？", a: "兩角", opts: ["腳", "頭", "毛"], src: "創世記 22:13 [24]" },
+            { q: "撒拉享壽多少歲？", a: "127歲", opts: ["120歲", "130歲", "100歲"], src: "創世記 23:1 [25]" },
+            { q: "亞伯拉罕用多少銀子買了麥比拉洞？", a: "400舍客勒", opts: ["30舍客勒", "50舍客勒", "1000舍客勒"], src: "創世記 23:15 [26]" },
+            { q: "以掃身體發紅，渾身有毛，如同甚麼？", a: "皮衣", opts: ["獅子", "綿羊", "野驢"], src: "創世記 25:25 [27]" },
+            { q: "雅各出生時，手抓着以掃的甚麼？", a: "腳跟", opts: ["手", "頭", "衣服"], src: "創世記 25:26 [27]" },
+            { q: "以掃因為甚麼出賣了長子的名分？", a: "紅豆湯", opts: ["羊肉", "金子", "衣服"], src: "創世記 25:30 [27]" },
+            { q: "以撒在基拉耳耕種，那一年有幾倍的收成？", a: "百倍", opts: ["三十倍", "六十倍", "十倍"], src: "創世記 26:12 [28]" },
+            { q: "利百加用甚麼包在雅各的手上和頸項的光滑處？", a: "山羊羔皮", opts: ["綿羊皮", "布", "樹葉"], src: "創世記 27:16 [29]" },
+            { q: "雅各夢見梯子的地方，起先名叫甚麼？", a: "路斯", opts: ["伯特利", "示劍", "希伯崙"], src: "創世記 28:19 [30]" },
+            { q: "拉班有兩個女兒，大的叫利亞，小的叫甚麼？", a: "拉結", opts: ["悉帕", "辟拉", "底拿"], src: "創世記 29:16 [31]" },
+            { q: "流便在田裏尋見甚麼拿來給他母親利亞？", a: "風茄", opts: ["無花果", "葡萄", "橄欖"], src: "創世記 30:14 [32]" },
+            { q: "拉結偷了父親家中的甚麼？", a: "神像", opts: ["金銀", "羊群", "駱駝"], src: "創世記 31:19 [33]" },
+            { q: "那人說：你的名不要再叫雅各，要叫甚麼？", a: "以色列", opts: ["以東", "以法蓮", "約書亞"], src: "創世記 32:28 [34]" },
+            { q: "雅各為自己蓋造房屋，給牲畜搭棚的地方叫甚麼？", a: "疏割", opts: ["毗努伊勒", "瑪哈念", "示劍"], src: "創世記 33:17 [35]" },
+            { q: "底拿被當地哪位首領的兒子玷辱了？", a: "示劍", opts: ["哈抹", "西緬", "利未"], src: "創世記 34:2 [35]" },
+            { q: "拉結生便雅憫時難產而死，她葬在哪裏？", a: "以法他", opts: ["麥比拉洞", "示劍", "亞拉臘"], src: "創世記 35:19 [36]" },
+            { q: "約瑟被賣給以實瑪利人，價銀是多少？", a: "二十舍客勒", opts: ["三十舍客勒", "十舍客勒", "五十舍客勒"], src: "創世記 37:28 [37]" },
+            { q: "約瑟被賣到埃及，誰買了他？", a: "波提乏", opts: ["法老", "酒政", "膳長"], src: "創世記 39:1 [38]" },
+            { q: "膳長夢見頭上頂着三筐甚麼？", a: "白餅", opts: ["葡萄", "無花果", "肉"], src: "創世記 40:16 [39]" },
+            { q: "法老賜名給約瑟叫甚麼？", a: "撒發那忒‧巴內亞", opts: ["波提非拉", "亞西納", "瑪拿西"], src: "創世記 41:45 [40]" },
+            { q: "約瑟的哥哥們第一次下埃及糴糧時，誰被留作人質？", a: "西緬", opts: ["流便", "猶大", "便雅憫"], src: "創世記 42:24 [41]" },
+            { q: "約瑟設宴時，便雅憫所得的食物比別人多多少？", a: "五倍", opts: ["兩倍", "三倍", "十倍"], src: "創世記 43:34 [42]" },
+            { q: "約瑟給便雅憫多少銀子？", a: "三百銀子", opts: ["二十銀子", "一百銀子", "一千銀子"], src: "創世記 45:22 [43]" },
+            { q: "雅各下埃及時年多少歲？", a: "130歲", opts: ["147歲", "100歲", "120歲"], src: "創世記 47:9 [44]" },
+            { q: "約瑟活了多少歲？", a: "110歲", opts: ["120歲", "100歲", "147歲"], src: "創世記 50:26 [45]" }
+        ];
+
+        // Level 5 and 10 are safe havens
+        const MONEY_LADDER = [
+            { amt: "$1,000", safe: false },
+            { amt: "$2,000", safe: false },
+            { amt: "$3,000", safe: false },
+            { amt: "$4,000", safe: false },
+            { amt: "$5,000", safe: true },  // Level 5
+            { amt: "$10,000", safe: false },
+            { amt: "$20,000", safe: false },
+            { amt: "$30,000", safe: false },
+            { amt: "$40,000", safe: false },
+            { amt: "$50,000", safe: true }, // Level 10
+            { amt: "$60,000", safe: false },
+            { amt: "$125,000", safe: false },
+            { amt: "$250,000", safe: false },
+            { amt: "$500,000", safe: false },
+            { amt: "$1,000,000", safe: true } // Level 15
+        ];
+
+        // --- Game Engine ---
+        
+        const game = {
+            state: {
+                questions: [],
+                currentIdx: 0,
+                isLocked: false,
+                lifelines: {
+                    fifty: false,
+                    phone: false,
+                    audience: false
+                }
+            },
+
+            el: {
+                startScreen: document.getElementById('start-screen'),
+                gameUi: document.getElementById('game-ui'),
+                resultScreen: document.getElementById('result-screen'),
+                optionsGrid: document.getElementById('options-grid'),
+                questionText: document.getElementById('question-text'),
+                ladderDesktop: document.getElementById('money-ladder-desktop'),
+                lifelineBtn50: document.getElementById('lifeline-5050'),
+                lifelineBtnPhone: document.getElementById('lifeline-phone'),
+                lifelineBtnAudience: document.getElementById('lifeline-audience'),
+                sourceReveal: document.getElementById('source-reveal'),
+                sourceText: document.getElementById('source-text'),
+                nextBtn: document.getElementById('next-btn'),
+                qLevelDisplay: document.getElementById('q-level-display'),
+                qMoneyDisplay: document.getElementById('q-money-display'),
+                safeHavenBadge: document.getElementById('safe-haven-badge'),
+                modalPhone: document.getElementById('modal-phone'),
+                phoneMsg: document.getElementById('phone-msg'),
+                modalAudience: document.getElementById('modal-audience'),
+                chartContainer: document.getElementById('chart-container')
+            },
+
+            shuffle(array) {
+                let arr = [...array];
+                for (let i = arr.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [arr[i], arr[j]] = [arr[j], arr[i]];
+                }
+                return arr;
+            },
+
+            init() {
+                this.renderLadder(this.el.ladderDesktop);
+            },
+
+            renderLadder(container) {
+                container.innerHTML = MONEY_LADDER.map((item, i) => {
+                    const isSafe = item.safe;
+                    const displayNum = i + 1;
+                    return `
+                    <div id="${container.id}-step-${i}" class="ladder-item flex justify-between items-center py-2 px-4 rounded text-base md:text-lg font-mono w-full
+                        ${isSafe ? 'ladder-safe' : 'ladder-normal'}">
+                        <span class="mr-4 w-6 text-right ${isSafe ? 'text-white' : 'text-yellow-600'}">${displayNum}</span>
+                        <span class="${isSafe ? 'text-white' : ''}">${item.amt}</span>
+                    </div>
+                `}).reverse().join('');
+            },
+
+            updateLadder(idx) {
+                [this.el.ladderDesktop].forEach(container => {
+                    MONEY_LADDER.forEach((_, i) => {
+                        const el = document.getElementById(`${container.id}-step-${i}`);
+                        if(!el) return;
+                        el.classList.remove('ladder-active', 'bg-yellow-600', 'ladder-passed');
+                        
+                        if (i === idx) {
+                            el.classList.add('ladder-active');
+                        } else if (i < idx) {
+                            el.classList.add('ladder-passed');
+                        }
+                    });
+                });
+            },
+
+            start() {
+                // Reset State
+                const rawShuffled = this.shuffle(RAW_QUESTIONS).slice(0, 15);
+                this.state.questions = rawShuffled.map(q => ({
+                    ...q,
+                    options: this.shuffle([q.a, ...q.opts])
+                }));
+                this.state.currentIdx = 0;
+                this.state.isLocked = false;
+                this.state.lifelines = { fifty: false, phone: false, audience: false };
+
+                // Reset UI
+                this.el.startScreen.classList.add('hidden');
+                this.el.resultScreen.classList.add('hidden');
+                this.el.gameUi.classList.remove('hidden');
+                setTimeout(() => this.el.gameUi.classList.remove('opacity-0'), 50);
+                
+                // Reset Buttons
+                [this.el.lifelineBtn50, this.el.lifelineBtnPhone, this.el.lifelineBtnAudience].forEach(btn => {
+                    btn.disabled = false;
+                    btn.classList.remove('lifeline-used');
+                });
+                
+                this.renderQuestion();
+            },
+
+            renderQuestion() {
+                const qData = this.state.questions[this.state.currentIdx];
+                const moneyInfo = MONEY_LADDER[this.state.currentIdx];
+                
+                this.state.isLocked = false;
+
+                // Reset Next Button/Source
+                this.el.nextBtn.classList.add('hidden');
+                this.el.sourceReveal.classList.remove('opacity-100');
+                this.el.sourceReveal.classList.add('opacity-0');
+
+                // Update Text
+                this.el.questionText.innerText = qData.q;
+                
+                // Update Top Stats
+                this.el.qLevelDisplay.innerText = `Q${this.state.currentIdx + 1}`;
+                this.el.qMoneyDisplay.innerText = moneyInfo.amt;
+                if (moneyInfo.safe) {
+                    this.el.safeHavenBadge.classList.remove('hidden');
+                } else {
+                    this.el.safeHavenBadge.classList.add('hidden');
+                }
+                
+                // Update Ladder
+                this.updateLadder(this.state.currentIdx);
+                const desktopStep = document.getElementById(`money-ladder-desktop-step-${this.state.currentIdx}`);
+                if (desktopStep) desktopStep.scrollIntoView({ behavior: "smooth", block: "center" });
+
+                // Render Options
+                this.el.optionsGrid.innerHTML = '';
+                qData.options.forEach((opt, idx) => {
+                    const letter = String.fromCharCode(65 + idx);
+                    const btn = document.createElement('button');
+                    btn.className = `group relative w-full h-16 md:h-20 rounded-full border-2 flex items-center px-6 md:px-10 shadow-lg transition-all duration-200 bg-gradient-to-b from-slate-900 to-black border-blue-500 hover:bg-slate-800 active:scale-95`;
+                    btn.onclick = () => this.handleAnswer(opt, btn);
+                    btn.innerHTML = `
+                        <span class="mr-4 font-bold text-xl md:text-2xl text-yellow-500 group-hover:text-white transition-colors">${letter}:</span>
+                        <span class="text-lg md:text-xl text-left flex-1 text-white">${opt}</span>
+                        <div class="absolute left-4 top-1/2 -translate-y-1/2 w-full h-[1px] bg-white/10 pointer-events-none"></div>
+                    `;
+                    btn.dataset.opt = opt;
+                    this.el.optionsGrid.appendChild(btn);
+                });
+            },
+
+            handleAnswer(selectedOpt, btnElement) {
+                if (this.state.isLocked) return;
+                this.state.isLocked = true;
+
+                // 1. Selected State (Orange)
+                btnElement.classList.remove('from-slate-900', 'to-black', 'border-blue-500');
+                btnElement.classList.add('from-yellow-600', 'to-yellow-800', 'border-white');
+                const textSpan = btnElement.querySelector('span:nth-child(2)');
+                textSpan.classList.add('font-bold', 'text-black');
+                btnElement.querySelector('span:first-child').classList.add('text-black');
+
+                // 2. Wait 2s for tension
+                setTimeout(() => {
+                    const currentQ = this.state.questions[this.state.currentIdx];
+                    const isCorrect = selectedOpt === currentQ.a;
+
+                    if (isCorrect) {
+                        // Correct State (Green)
+                        btnElement.classList.remove('from-yellow-600', 'to-yellow-800');
+                        btnElement.classList.add('correct-answer', 'from-green-600', 'to-green-800');
+                        
+                        // Show Verse
+                        this.el.sourceText.innerText = `✅ 正確！ 📖 ${currentQ.src}`;
+                        this.el.sourceReveal.classList.remove('opacity-0');
+                        this.el.sourceReveal.classList.add('opacity-100');
+
+                        // Show Next Button
+                        this.el.nextBtn.classList.remove('hidden');
+                        
+                        // Scroll to bottom
+                        setTimeout(() => {
+                            this.el.nextBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }, 100);
+
+                    } else {
+                        // Wrong State (Red)
+                        btnElement.classList.remove('from-yellow-600', 'to-yellow-800');
+                        btnElement.classList.add('from-red-600', 'to-red-900');
+                        
+                        // Highlight Correct One
+                        const correctBtn = Array.from(this.el.optionsGrid.children).find(b => b.dataset.opt === currentQ.a);
+                        if(correctBtn) {
+                            correctBtn.classList.remove('from-slate-900', 'to-black', 'border-blue-500');
+                            correctBtn.classList.add('correct-answer', 'from-green-600', 'to-green-800');
+                        }
+
+                        // Show Source
+                        this.el.sourceText.innerText = `❌ 錯誤！ 📖 ${currentQ.src}`;
+                        this.el.sourceReveal.classList.remove('opacity-0');
+                        this.el.sourceReveal.classList.add('opacity-100');
+
+                        setTimeout(() => {
+                            this.endGame(false, false); // Not a walk away, it's a loss
+                        }, 3000);
+                    }
+                }, 2000);
+            },
+
+            nextQuestion() {
+                if (this.state.currentIdx >= 14) {
+                    this.endGame(true, false);
+                } else {
+                    this.state.currentIdx++;
+                    this.renderQuestion();
+                }
+            },
+
+            // --- Lifelines ---
+            use5050() {
+                if (this.state.lifelines.fifty || this.state.isLocked) return;
+                
+                const currentQ = this.state.questions[this.state.currentIdx];
+                const buttons = Array.from(this.el.optionsGrid.children);
+                const wrongButtons = buttons.filter(btn => btn.dataset.opt !== currentQ.a);
+                
+                // Shuffle and hide 2
+                const toHide = this.shuffle(wrongButtons).slice(0, 2);
+                toHide.forEach(btn => btn.classList.add('invisible-opt'));
+
+                // Update Button State
+                this.state.lifelines.fifty = true;
+                this.el.lifelineBtn50.classList.add('lifeline-used');
+            },
+
+            usePhone() {
+                if (this.state.lifelines.phone || this.state.isLocked) return;
+                
+                const currentQ = this.state.questions[this.state.currentIdx];
+                this.el.modalPhone.classList.remove('hidden');
+                
+                // Simulate thinking
+                this.el.phoneMsg.innerText = "打給朋友中...";
+                
+                setTimeout(() => {
+                    const phrases = [
+                        `我非常有信心，答案肯定是 ${currentQ.a}。`,
+                        `我在主日學聽過這題，應該是 ${currentQ.a}！`,
+                        `這題有點難... 但我有 80% 把握是 ${currentQ.a}。`,
+                        `不用想了，選 ${currentQ.a}！`
+                    ];
+                    const randomPhrase = phrases[Math.floor(Math.random() * phrases.length)];
+                    this.el.phoneMsg.innerText = `🗣️: "${randomPhrase}"`;
+                }, 1500);
+
+                this.state.lifelines.phone = true;
+                this.el.lifelineBtnPhone.classList.add('lifeline-used');
+            },
+
+            useAudience() {
+                if (this.state.lifelines.audience || this.state.isLocked) return;
+                
+                const currentQ = this.state.questions[this.state.currentIdx];
+                this.el.modalAudience.classList.remove('hidden');
+                
+                // Generate percentages (Correct answer gets 60-90%)
+                const correctPct = Math.floor(Math.random() * 30) + 60; // 60-90
+                const remaining = 100 - correctPct;
+                
+                // Distribute remaining randomly among 3 wrong answers
+                let r1 = Math.floor(Math.random() * remaining);
+                let r2 = Math.floor(Math.random() * (remaining - r1));
+                let r3 = remaining - r1 - r2;
+                
+                // Map percentages to options
+                const stats = [];
+                const buttons = Array.from(this.el.optionsGrid.children);
+                
+                let wrongIdx = 0;
+                const wrongs = [r1, r2, r3];
+
+                buttons.forEach(btn => {
+                    const isCorrect = btn.dataset.opt === currentQ.a;
+                    const val = isCorrect ? correctPct : wrongs[wrongIdx++];
+                    stats.push({ label: btn.querySelector('span').innerText.replace(':',''), val });
+                });
+
+                // Render Chart
+                this.el.chartContainer.innerHTML = stats.map(s => `
+                    <div class="bar-container">
+                        <span class="text-xs mb-1">${s.val}%</span>
+                        <div class="bar" style="height: ${s.val}%"></div>
+                        <span class="text-xl mt-1 font-bold">${s.label}</span>
+                    </div>
+                `).join('');
+
+                this.state.lifelines.audience = true;
+                this.el.lifelineBtnAudience.classList.add('lifeline-used');
+            },
+
+            walkAway() {
+                if(this.state.isLocked) return;
+                if(confirm("確定要棄權嗎？你將拿走目前的獎金。")) {
+                    this.endGame(false, true);
+                }
+            },
+
+            endGame(won, walkedAway) {
+                this.el.gameUi.classList.add('hidden');
+                this.el.resultScreen.classList.remove('hidden');
+                
+                const resultTitle = document.getElementById('result-title');
+                const resultPrize = document.getElementById('result-prize');
+                const correctAnswerDisplay = document.getElementById('correct-answer-display');
+                
+                if (won) {
+                    resultTitle.innerText = "恭喜發財！";
+                    resultTitle.className = "text-5xl md:text-7xl font-bold mb-6 text-yellow-400 animate-winner";
+                    resultPrize.innerText = "$1,000,000";
+                    correctAnswerDisplay.classList.add('hidden');
+                } else if (walkedAway) {
+                    resultTitle.innerText = "成功取分";
+                    resultTitle.className = "text-5xl md:text-6xl font-bold mb-6 text-green-400";
+                    
+                    // Logic: Get value of PREVIOUS question (or $0 if on Q1)
+                    const prize = this.state.currentIdx > 0 
+                        ? MONEY_LADDER[this.state.currentIdx - 1].amt 
+                        : "$0";
+                    resultPrize.innerText = prize;
+                    correctAnswerDisplay.classList.add('hidden');
+                } else {
+                    // Answered WRONG
+                    resultTitle.innerText = "遊戲結束";
+                    resultTitle.className = "text-5xl md:text-7xl font-bold mb-6 text-blue-300";
+                    
+                    // Safe Haven Logic
+                    let prizeText = "$0";
+                    const idx = this.state.currentIdx; 
+                    
+                    if (idx >= 10) { // Passed Q10
+                        prizeText = "$50,000"; 
+                    } else if (idx >= 5) { // Passed Q5
+                        prizeText = "$5,000"; 
+                    } else {
+                        prizeText = "$0";
+                    }
+
+                    resultPrize.innerText = prizeText;
+                    
+                    // Show correct answer
+                    const lastQ = this.state.questions[this.state.currentIdx];
+                    document.getElementById('correct-answer-text').innerText = lastQ.a;
+                    document.getElementById('correct-source-text').innerText = lastQ.src;
+                    correctAnswerDisplay.classList.remove('hidden');
+                }
+            }
+        };
+
+        // Initialize
+        game.init();
+
+    </script>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>
